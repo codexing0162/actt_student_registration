@@ -1,0 +1,52 @@
+[
+  {
+    "courseName": "Flutter Development",
+    "duration": "3 months",
+    "price": 500
+  },
+  {
+    "courseName": "Web Development",
+    "duration": "4 months",
+    "price": 600
+  },
+  {
+    "courseName": "Data Science",
+    "duration": "6 months",
+    "price": 1000
+  },
+  {
+    "courseName": "Machine Learning",
+    "duration": "5 months",
+    "price": 800
+  },
+  {
+    "courseName": "Digital Marketing",
+    "duration": "2 months",
+    "price": 400
+  },
+  {
+    "courseName": "Graphic Design",
+    "duration": "3 months",
+    "price": 450
+  },
+  {
+    "courseName": "Cyber Security",
+    "duration": "4 months",
+    "price": 700
+  },
+  {
+    "courseName": "Cloud Computing",
+    "duration": "6 months",
+    "price": 900
+  },
+  {
+    "courseName": "Mobile App Development",
+    "duration": "5 months",
+    "price": 750
+  },
+  {
+    "courseName": "UI/UX Design",
+    "duration": "3 months",
+    "price": 500
+  }
+]
