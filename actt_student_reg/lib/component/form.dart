@@ -1,7 +1,6 @@
 import 'dart:io';
 import 'dart:convert';
 import 'package:flutter/material.dart';
-//import 'package:path_provider/path_provider.dart';
 
 class RegisterForm extends StatefulWidget {
   const RegisterForm({super.key});
@@ -37,6 +36,10 @@ class _RegisterFormState extends State<RegisterForm> {
   List<Map<String, dynamic>> _courseDetails = [];
   List<String> _courseNames = [];
 
+  // Define file paths for courses and students data
+  final String _coursesFilePath = 'lib/localstorage/course.json';
+  final String _studentsFilePath = 'lib/localstorage/students.json';
+
   @override
   void initState() {
     super.initState();
@@ -44,27 +47,24 @@ class _RegisterFormState extends State<RegisterForm> {
   }
 
   Future<void> _loadCourseNames() async {
-    // Load course names from a local JSON file
     try {
-      // Use absolute path for development
-      final file = File(
-        '/home/mujeeb/Desktop/myflutter/actt_student_reg/lib/localstorage/course.json',
-      );
+      final file = File(_coursesFilePath);
 
-      if (await file.exists()) {
-        final contents = await file.readAsString();
-        final List<dynamic> responseData = jsonDecode(contents);
-        setState(() {
-          _courseNames =
-              responseData
-                  .map((course) => course['courseName'] as String)
-                  .toList();
-          _courseDetails = List<Map<String, dynamic>>.from(responseData);
-        });
-      } else {
-        // If the file doesn't exist, create an empty one
+      if (!(await file.exists())) {
+        // Create the file if it doesn't exist
         await file.writeAsString(jsonEncode([]));
       }
+
+      final contents = await file.readAsString();
+      final List<dynamic> responseData =
+          contents.isNotEmpty ? jsonDecode(contents) : [];
+      setState(() {
+        _courseNames =
+            responseData
+                .map((course) => course['courseName'] as String)
+                .toList();
+        _courseDetails = List<Map<String, dynamic>>.from(responseData);
+      });
     } catch (e) {
       ScaffoldMessenger.of(
         context,
@@ -93,18 +93,17 @@ class _RegisterFormState extends State<RegisterForm> {
     };
 
     try {
-      final file = File(
-        '/home/mujeeb/Desktop/myflutter/actt_student_reg/lib/localstorage/student.json',
-      );
+      final file = File(_studentsFilePath);
+
+      if (!(await file.exists())) {
+        // Create the file if it doesn't exist
+        await file.writeAsString(jsonEncode([]));
+      }
 
       List<dynamic> existingData = [];
-      if (await file.exists()) {
-        final contents = await file.readAsString();
-        if (contents.isNotEmpty) {
-          existingData = jsonDecode(contents);
-        }
-      } else {
-        await file.writeAsString(jsonEncode([]));
+      final contents = await file.readAsString();
+      if (contents.isNotEmpty) {
+        existingData = jsonDecode(contents);
       }
 
       existingData.add(data);

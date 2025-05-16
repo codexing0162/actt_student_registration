@@ -26,14 +26,7 @@ class homepage extends StatelessWidget {
               decoration: BoxDecoration(color: Colors.blueGrey),
               child: Image.asset('lib/images/acttlogo.png'),
             ),
-            ListTile(
-              leading: const Icon(Icons.home),
-              title: const Text('Home'),
-              onTap: () {
-                // Handle home tap
-                Navigator.pop(context);
-              },
-            ),
+
             ListTile(
               leading: const Icon(Icons.list),
               title: const Text('Student List'),

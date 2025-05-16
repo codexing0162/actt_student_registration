@@ -1,8 +1,12 @@
 import 'dart:io';
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
 import 'package:actt_student_reg/screens/home.dart';
+import 'package:actt_student_reg/screens/setting.dart';
+import 'package:flutter/services.dart' show rootBundle;
 
 class StudentList extends StatefulWidget {
   const StudentList({super.key});
@@ -15,8 +19,10 @@ class _StudentListState extends State<StudentList> {
   List<Map<String, dynamic>> _students = [];
   List<Map<String, dynamic>> _filteredStudents = [];
   bool _isLoading = true;
-  bool _fetchFromLocal = true; // Toggle between local and online data
+  bool _fetchFromLocal = true;
   final TextEditingController _searchController = TextEditingController();
+  DateTime _lastModified = DateTime.now();
+  Timer? _autoRefreshTimer;
 
   @override
   void initState() {
@@ -55,25 +61,48 @@ class _StudentListState extends State<StudentList> {
 
   Future<List<Map<String, dynamic>>> _fetchLocalData() async {
     try {
-      final file = File(
-        '/home/mujeeb/Desktop/myflutter/actt_student_reg/lib/localstorage/student.json',
-      );
+      // Get application documents directory
+      final directory = await getApplicationDocumentsDirectory();
+      final file = File('${directory.path}/students.json');
 
-      if (await file.exists()) {
-        final contents = await file.readAsString();
-        final List<dynamic> jsonData = jsonDecode(contents);
-        return List<Map<String, dynamic>>.from(jsonData);
-      } else {
-        return [];
+      // Check if file exists, if not, create it from assets
+      if (!await file.exists()) {
+        final defaultData = await rootBundle.loadString(
+          'lib/localstorage/students.json',
+        );
+        await file.writeAsString(defaultData);
+        _lastModified = await file.lastModified();
       }
+
+      // Read the file
+      final contents = await file.readAsString();
+      final List<dynamic> jsonData = jsonDecode(contents);
+      return List<Map<String, dynamic>>.from(jsonData);
     } catch (e) {
       throw Exception('Error reading local data: $e');
     }
   }
 
+  Future<void> _checkForUpdates() async {
+    try {
+      final directory = await getApplicationDocumentsDirectory();
+      final file = File('${directory.path}/students.json');
+
+      if (await file.exists()) {
+        final modified = await file.lastModified();
+
+        if (modified.isAfter(_lastModified)) {
+          _lastModified = modified;
+          await _fetchData();
+        }
+      }
+    } catch (e) {
+      print('Error checking for updates: $e');
+    }
+  }
+
   Future<List<Map<String, dynamic>>> _fetchGoogleSheetData() async {
     try {
-      // Replace with your Google Sheets API URL
       final url = Uri.parse(
         'https://script.google.com/macros/s/AKfycby2HTo4nmtn0yGKvAb3xlF9NNJFQWFFOxeT_o9lrM4tb5riN4_5UYjVRiOBmRk7XlzE/exec',
       );
@@ -81,15 +110,11 @@ class _StudentListState extends State<StudentList> {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-
-        // Log the response for debugging
         print('Google Sheets API Response: $data');
 
-        // Ensure 'data' is a list
         if (data is List<dynamic>) {
           final List<dynamic> rows = data;
 
-          // Convert rows to a list of maps, skipping invalid rows
           return rows
               .map((row) {
                 if (row is Map<String, dynamic>) {
@@ -112,7 +137,6 @@ class _StudentListState extends State<StudentList> {
                     'remainingPrice': row['remainingPrice'] ?? '',
                   };
                 } else {
-                  // Skip invalid rows
                   return null;
                 }
               })
@@ -140,11 +164,12 @@ class _StudentListState extends State<StudentList> {
                 (student) =>
                     (student['Student'] ?? '').toLowerCase().contains(query) ||
                     (student['fullName'] ?? '').toLowerCase().contains(query) ||
-                    (student['courseName'] ?? '')
-                        .toLowerCase()
-                        .contains(query)(student['trainerName'] ?? '')
-                        .toLowerCase()
-                        .contains(query) ||
+                    (student['courseName'] ?? '').toLowerCase().contains(
+                      query,
+                    ) ||
+                    (student['trainerName'] ?? '').toLowerCase().contains(
+                      query,
+                    ) ||
                     (student['phone'] ?? '').toLowerCase().contains(query) ||
                     (student['dob'] ?? '').toLowerCase().contains(query) ||
                     (student['postalAddress'] ?? '').toLowerCase().contains(
@@ -182,8 +207,40 @@ class _StudentListState extends State<StudentList> {
     _fetchData();
   }
 
+  void _startAutoRefresh() {
+    _autoRefreshTimer?.cancel();
+    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 5), (
+      timer,
+    ) async {
+      if (_fetchFromLocal && mounted) {
+        await _checkForUpdates();
+      }
+    });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_fetchFromLocal) {
+      _startAutoRefresh();
+    }
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _autoRefreshTimer?.cancel();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (_fetchFromLocal) {
+      _startAutoRefresh();
+    } else {
+      _autoRefreshTimer?.cancel();
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Student List'),
@@ -202,8 +259,7 @@ class _StudentListState extends State<StudentList> {
               leading: const Icon(Icons.home),
               title: const Text('Home'),
               onTap: () {
-                // Handle home tap
-                Navigator.pop(context); // Close the drawer
+                Navigator.pop(context);
                 Navigator.push(
                   context,
                   MaterialPageRoute(builder: (context) => const homepage()),
@@ -211,21 +267,19 @@ class _StudentListState extends State<StudentList> {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.list),
-              title: const Text('Student List'),
+              leading: const Icon(Icons.settings),
+              title: const Text('Setting'),
               onTap: () {
-                Navigator.pop(context); // Close the drawer
+                Navigator.pop(context);
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => const StudentList()),
+                  MaterialPageRoute(builder: (context) => Setting()),
                 );
-                // Handle student list tap
               },
             ),
           ],
         ),
       ),
-
       body: Column(
         children: [
           Padding(
@@ -260,38 +314,40 @@ class _StudentListState extends State<StudentList> {
                     ? const Center(child: CircularProgressIndicator())
                     : _filteredStudents.isEmpty
                     ? const Center(
-                      child: Text('No students found Try Fetch Online'),
+                      child: Text('No students found. Try Fetch Online'),
                     )
-                    : ListView.builder(
-                      itemCount: _filteredStudents.length,
-                      itemBuilder: (context, index) {
-                        final student = _filteredStudents[index];
-                        return GestureDetector(
-                          onTap: () {
-                            // Handle student selection
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder:
-                                    (context) =>
-                                        StudentDetailPage(student: student),
-                              ),
-                            );
-                          },
-                          child: Card(
-                            margin: const EdgeInsets.all(8.0),
-                            child: ListTile(
-                              title: Text(student['fullName'] ?? 'Unknown'),
-                              subtitle: Text(
-                                'Course: ${student['courseName'] ?? 'N/A'}',
-                              ),
-                              trailing: Text(
-                                'Price: ${student['price'] ?? 'N/A'}',
+                    : RefreshIndicator(
+                      onRefresh: _fetchData,
+                      child: ListView.builder(
+                        itemCount: _filteredStudents.length,
+                        itemBuilder: (context, index) {
+                          final student = _filteredStudents[index];
+                          return GestureDetector(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder:
+                                      (context) =>
+                                          StudentDetailPage(student: student),
+                                ),
+                              );
+                            },
+                            child: Card(
+                              margin: const EdgeInsets.all(8.0),
+                              child: ListTile(
+                                title: Text(student['fullName'] ?? 'Unknown'),
+                                subtitle: Text(
+                                  'Course: ${student['courseName'] ?? 'N/A'}',
+                                ),
+                                trailing: Text(
+                                  'Price: ${student['price'] ?? 'N/A'}',
+                                ),
                               ),
                             ),
-                          ),
-                        );
-                      },
+                          );
+                        },
+                      ),
                     ),
           ),
         ],
@@ -305,93 +361,130 @@ class StudentDetailPage extends StatelessWidget {
 
   const StudentDetailPage({super.key, required this.student});
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Student Details'),
-        backgroundColor: Colors.blueGrey,
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Card(
-          elevation: 4,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Text(
-                    'Details for ${student['fullName'] ?? 'Unknown'}',
-                    style: const TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.blueGrey,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                _buildDetailRow('Student ID:', student['Student']),
-                _buildDetailRow('Full Name:', student['fullName']),
-                _buildDetailRow('Date of Birth:', student['dob']),
-                _buildDetailRow('Course:', student['courseName']),
-                _buildDetailRow('Trainer:', student['trainerName']),
-                _buildDetailRow('Phone:', student['phone']),
-                _buildDetailRow('Emergency Phone:', student['emergencyPhone']),
-                _buildDetailRow('Postal Address:', student['postalAddress']),
-                _buildDetailRow('Education Level:', student['educationLevel']),
-                _buildDetailRow('Admission Date:', student['admissionDate']),
-                _buildDetailRow('Completion Date:', student['completionDate']),
-                _buildDetailRow('Duration:', student['duration']),
-                _buildDetailRow('Amount Paid:', student['amountPaid']),
-                _buildDetailRow(
-                  'Remaining Price:',
-                  student['remainingPrice'],
-                  isHighlighted: true,
-                ),
-                _buildDetailRow('Price:', student['price']),
-              ],
-            ),
-          ),
+  Widget _buildInfoTile(String label, dynamic value, {IconData? icon}) {
+    return Card(
+      elevation: 2,
+      margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 0),
+      child: ListTile(
+        leading: icon != null ? Icon(icon, color: Colors.blueGrey) : null,
+        title: Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
+        subtitle: Text(
+          value != null ? value.toString() : '-',
+          style: const TextStyle(fontSize: 16),
         ),
       ),
     );
   }
 
-  Widget _buildDetailRow(
-    String label,
-    dynamic value, {
-    bool isHighlighted = false,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '$label ',
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
-            ),
-          ),
-          Expanded(
-            child: Text(
-              value?.toString() ??
-                  'N/A', // Convert value to string and handle null
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: isHighlighted ? FontWeight.bold : FontWeight.normal,
-                color: isHighlighted ? Colors.red : Colors.black54,
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(student['fullName'] ?? 'Student Details'),
+        backgroundColor: Colors.blueGrey,
+      ),
+      body: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            children: [
+              CircleAvatar(
+                radius: 48,
+                backgroundColor: Colors.blueGrey[100],
+                child: Text(
+                  ((student['fullName'] != null &&
+                          (student['fullName'] as String).isNotEmpty)
+                      ? (student['fullName'] as String)[0].toUpperCase()
+                      : 'S'),
+                  style: const TextStyle(fontSize: 40, color: Colors.blueGrey),
+                ),
               ),
-            ),
+              const SizedBox(height: 16),
+              Text(
+                student['fullName'] ?? 'Unknown',
+                style: const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.blueGrey,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                student['courseName'] ?? '',
+                style: const TextStyle(fontSize: 18, color: Colors.black54),
+              ),
+              const Divider(height: 32, thickness: 1.2),
+              _buildInfoTile(
+                'Student ID',
+                student['Student'],
+                icon: Icons.badge,
+              ),
+              _buildInfoTile('Date of Birth', student['dob'], icon: Icons.cake),
+              _buildInfoTile('Gender', student['gender'], icon: Icons.person),
+              _buildInfoTile(
+                'Postal Address',
+                student['postalAddress'],
+                icon: Icons.home,
+              ),
+              _buildInfoTile('Phone', student['phone'], icon: Icons.phone),
+              _buildInfoTile(
+                'Emergency Phone',
+                student['emergencyPhone'],
+                icon: Icons.phone_in_talk,
+              ),
+              _buildInfoTile(
+                'Education Level',
+                student['educationLevel'],
+                icon: Icons.school,
+              ),
+              _buildInfoTile(
+                'Trainer Name',
+                student['trainerName'],
+                icon: Icons.person_outline,
+              ),
+              _buildInfoTile(
+                'Admission Date',
+                student['admissionDate'],
+                icon: Icons.calendar_today,
+              ),
+              _buildInfoTile(
+                'Completion Date',
+                student['completionDate'],
+                icon: Icons.event_available,
+              ),
+              _buildInfoTile(
+                'Duration',
+                student['duration'],
+                icon: Icons.timer,
+              ),
+              _buildInfoTile(
+                'Course Price',
+                student['price'],
+                icon: Icons.attach_money,
+              ),
+              _buildInfoTile(
+                'Amount Paid',
+                student['amountPaid'],
+                icon: Icons.payments,
+              ),
+              _buildInfoTile(
+                'Remaining Price',
+                student['remainingPrice'],
+                icon: Icons.money_off,
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton.icon(
+                icon: const Icon(Icons.arrow_back),
+                label: const Text('Back to List'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blueGrey,
+                  minimumSize: const Size.fromHeight(48),
+                ),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
