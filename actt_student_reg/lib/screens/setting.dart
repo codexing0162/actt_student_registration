@@ -1,258 +1,298 @@
-import 'dart:io';
+
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../component/datasyc.dart'; // DataSync
-import 'package:url_launcher/url_launcher.dart';
-import 'package:actt_student_reg/screens/home.dart';
-import 'package:actt_student_reg/screens/studentlist.dart';
-import '../component/nofticationtheme.dart'; // ThemeNotifier
+import '../utils/constants.dart';
+import '../services/local_storage_service.dart';
+import '../services/google_sheets_service.dart';
+import '../components/datasyc_manager.dart';
 
-class Setting extends StatefulWidget {
-  const Setting({super.key});
-
+class SettingScreen extends StatefulWidget {
   @override
-  State<Setting> createState() => _SettingState();
+  _SettingScreenState createState() => _SettingScreenState();
 }
 
-class _SettingState extends State<Setting> {
-  bool _autoSyncEnabled = false;
+class _SettingScreenState extends State<SettingScreen> {
+  final _formKey = GlobalKey<FormState>();
+  final _googleScriptUrlController = TextEditingController();
+  final LocalStorageService _localStorageService = LocalStorageService();
+  
+  bool _autoSync = true;
+  bool _darkMode = false;
+  bool _isTestingConnection = false;
+  bool _connectionStatus = false;
 
-  final studentPath = 'lib/localstorage/student.json';
-  final syncedPath = 'lib/localstorage/sycdata.json';
-  final exportPath = 'lib/localstorage/exported.json';
-  final importPath = 'lib/localstorage/imported.json';
+  @override
+  void initState() {
+    super.initState();
+    _loadSettings();
+  }
+  
+  Future<void> _loadSettings() async {
+    _googleScriptUrlController.text = Constants.googleScriptUrl;
+    _autoSync = await Constants.getAutoSync();
+    _darkMode = await Constants.getDarkMode();
+    setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _googleScriptUrlController.dispose();
+    super.dispose();
+  }
+  
+  // Save Google Script URL
+  Future<void> _saveGoogleScriptUrl() async {
+    if (!_formKey.currentState!.validate()) return;
+    
+    final url = _googleScriptUrlController.text.trim();
+    await Constants.saveGoogleScriptUrl(url);
+    
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Google Script URL saved'),
+        backgroundColor: Colors.green,
+      ),
+    );
+  }
+  
+  // Test connection to Google Sheets
+  Future<void> _testConnection() async {
+    setState(() {
+      _isTestingConnection = true;
+    });
+    
+    try {
+      final googleSheetsService = GoogleSheetsService(
+        _localStorageService, 
+        _googleScriptUrlController.text.trim(),
+      );
+      
+      final success = await googleSheetsService.testConnection();
+      
+      setState(() {
+        _isTestingConnection = false;
+        _connectionStatus = success;
+      });
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(success ? 'Connection successful!' : 'Connection failed'),
+          backgroundColor: success ? Colors.green : Colors.red,
+        ),
+      );
+    } catch (e) {
+      setState(() {
+        _isTestingConnection = false;
+        _connectionStatus = false;
+      });
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error testing connection: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+  
+  // Toggle auto-sync
+  Future<void> _toggleAutoSync(bool value) async {
+    await Constants.saveAutoSync(value);
+    setState(() {
+      _autoSync = value;
+    });
+  }
+  
+  // Toggle dark mode
+  Future<void> _toggleDarkMode(bool value) async {
+    await Constants.saveDarkMode(value);
+    setState(() {
+      _darkMode = value;
+    });
+    
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Dark mode will be applied on restart'),
+        action: SnackBarAction(
+          label: 'OK',
+          onPressed: () {},
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Settings'),
-        backgroundColor: Colors.blueGrey,
-        centerTitle: true,
+        title: Text('Settings'),
       ),
-      drawer: Drawer(
-        child: ListView(
-          padding: EdgeInsets.zero,
-          children: [
-            DrawerHeader(
-              decoration: BoxDecoration(color: Colors.blueGrey),
-              child: Image.asset('lib/images/acttlogo.png'),
-            ),
-            ListTile(
-              leading: const Icon(Icons.home),
-              title: const Text('Home'),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const homepage()),
-                );
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.list),
-              title: const Text('Student List'),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const StudentList()),
-                );
-              },
-            ),
-          ],
-        ),
-      ),
-      // ...existing code...
-      body: ListView(
-        padding: const EdgeInsets.all(16.0),
-        children: [
-          const Text(
-            'Sync Settings',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
-
-          ListTile(
-            title: const Text('Manual Sync'),
-            subtitle: const Text('Sync data manually'),
-            trailing: ElevatedButton(
-              onPressed: () async {
-                try {
-                  final dataSync = DataSync();
-                  await dataSync.syncDataAndDelete();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Data synced and local data updated!'),
+      body: SingleChildScrollView(
+        child: Padding(
+          padding: EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Google Sheets Integration
+              _buildSectionHeader('Google Sheets Integration'),
+              Form(
+                key: _formKey,
+                child: Column(
+                  children: [
+                    TextFormField(
+                      controller: _googleScriptUrlController,
+                      decoration: InputDecoration(
+                        labelText: 'Google Script URL',
+                        hintText: 'https://script.google.com/macros/s/...',
+                        border: OutlineInputBorder(),
+                      ),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please enter a URL';
+                        }
+                        if (!value.startsWith('https://')) {
+                          return 'URL must start with https://';
+                        }
+                        return null;
+                      },
+                    ),
+                    SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            icon: Icon(Icons.save),
+                            label: Text('Save URL'),
+                            onPressed: _saveGoogleScriptUrl,
+                          ),
+                        ),
+                        SizedBox(width: 16),
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            icon: _isTestingConnection
+                                ? SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : Icon(_connectionStatus ? Icons.check : Icons.sync),
+                            label: Text('Test Connection'),
+                            onPressed: _isTestingConnection ? null : _testConnection,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: _connectionStatus ? Colors.green : null,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(height: 24),
+              
+              // Data Synchronization
+              _buildSectionHeader('Data Synchronization'),
+              ListTile(
+                title: Text('Auto-sync when online'),
+                subtitle: Text(
+                  'Automatically sync data with Google Sheets when an internet connection is available'
+                ),
+                trailing: Switch(
+                  value: _autoSync,
+                  onChanged: _toggleAutoSync,
+                ),
+              ),
+              SizedBox(height: 8),
+              ElevatedButton.icon(
+                icon: Icon(Icons.sync),
+                label: Text('Sync Now'),
+                onPressed: () {
+                  showDialog(
+                    context: context,
+                    builder: (context) => DataSyncManager(
+                      onSyncComplete: () {
+                        // Do nothing
+                      },
                     ),
                   );
-                } catch (e) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Error syncing data: $e')),
-                  );
-                }
-              },
-              child: const Text('Sync Now'),
-            ),
-          ),
-
-          const Divider(),
-          const Text(
-            'Data Management',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
-
-          ListTile(
-            title: const Text('Clear Local Data'),
-            subtitle: const Text('Delete all local data'),
-            trailing: IconButton(
-              icon: const Icon(Icons.delete, color: Colors.red),
-              onPressed: () async {
-                try {
-                  final studentFile = File(studentPath);
-                  final syncedFile = File(syncedPath);
-
-                  if (await studentFile.exists()) await studentFile.delete();
-                  if (await syncedFile.exists()) await syncedFile.delete();
-
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Local data cleared successfully!'),
-                    ),
-                  );
-                } catch (e) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Error clearing data: $e')),
-                  );
-                }
-              },
-            ),
-          ),
-
-          ListTile(
-            title: const Text('Export Data'),
-            subtitle: const Text('Export local data as JSON'),
-            trailing: IconButton(
-              icon: const Icon(Icons.download),
-              onPressed: () async {
-                try {
-                  final studentFile = File(studentPath);
-                  if (await studentFile.exists()) {
-                    final data = await studentFile.readAsString();
-                    final exportFile = File(exportPath);
-                    await exportFile.writeAsString(data);
-
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Data exported successfully!'),
+                },
+                style: ElevatedButton.styleFrom(
+                  minimumSize: Size(double.infinity, 50),
+                ),
+              ),
+              SizedBox(height: 24),
+              
+              // Appearance
+              _buildSectionHeader('Appearance'),
+              ListTile(
+                title: Text('Dark Mode'),
+                subtitle: Text('Use dark theme throughout the app'),
+                trailing: Switch(
+                  value: _darkMode,
+                  onChanged: _toggleDarkMode,
+                ),
+              ),
+              SizedBox(height: 24),
+              
+              // About
+              _buildSectionHeader('About'),
+              ListTile(
+                title: Text('App Version'),
+                subtitle: Text(Constants.appVersion),
+                trailing: Icon(Icons.info_outline),
+              ),
+              SizedBox(height: 8),
+              Card(
+                child: Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        Constants.appName,
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                    );
-                  } else {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('No data to export!')),
-                    );
-                  }
-                } catch (e) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Error exporting data: $e')),
-                  );
-                }
-              },
-            ),
-          ),
-
-          ListTile(
-            title: const Text('Import Data'),
-            subtitle: const Text('Import data from a JSON file'),
-            trailing: IconButton(
-              icon: const Icon(Icons.upload),
-              onPressed: () async {
-                try {
-                  final importFile = File(importPath);
-                  if (await importFile.exists()) {
-                    final data = await importFile.readAsString();
-                    final studentFile = File(studentPath);
-                    await studentFile.writeAsString(data);
-
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Data imported successfully!'),
+                      SizedBox(height: 8),
+                      Text(
+                        'This application manages student registrations, courses, and payments for ACTT Training Center.',
                       ),
-                    );
-                  } else {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('No imported file found!')),
-                    );
-                  }
-                } catch (e) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Error importing data: $e')),
-                  );
-                }
-              },
-            ),
-          ),
-
-          const Divider(),
-          const Text(
-            'Theme Settings',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
-
-          SwitchListTile(
-            title: const Text('Dark Mode'),
-            subtitle: const Text('Enable dark theme'),
-            value: Provider.of<ThemeNotifier>(context).isDarkMode,
-            onChanged: (bool value) {
-              Provider.of<ThemeNotifier>(
-                context,
-                listen: false,
-              ).toggleTheme(value);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    value ? 'Dark Mode Enabled' : 'Dark Mode Disabled',
+                      SizedBox(height: 8),
+                      Text(
+                        'For more help, contact the developer: mujeeb',
+                        style: TextStyle(fontStyle: FontStyle.italic),
+                      ),
+                    ],
                   ),
                 ),
-              );
-            },
+              ),
+            ],
           ),
-
-          const Divider(),
-          const Text(
-            'App Information',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
-
-          ListTile(
-            title: const Text('About'),
-            subtitle: const Text('Learn more about the app'),
-            onTap: () {
-              showAboutDialog(
-                context: context,
-                applicationName: 'Student Registration App',
-                applicationVersion: '1.0.0',
-                applicationLegalese: '© 2025 actt',
-                children: [
-                  const Text('Developed by Mujeeb Abdul'),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'This app is designed to help manage student registrations.',
-                  ),
-                ],
-              );
-            },
-          ),
-
-          ListTile(
-            title: const Text('Privacy Policy'),
-            subtitle: const Text('View the app\'s privacy policy'),
-            onTap: () {
-              const url = 'https://your-privacy-policy-url.com';
-              launchUrl(Uri.parse(url));
-            },
-          ),
-        ],
+        ),
       ),
+    );
+  }
+  
+  // Helper to build section headers
+  Widget _buildSectionHeader(String title) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: Colors.blue,
+          ),
+        ),
+        Divider(),
+        SizedBox(height: 8),
+      ],
     );
   }
 }

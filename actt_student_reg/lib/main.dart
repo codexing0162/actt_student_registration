@@ -1,45 +1,41 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'package:workmanager/workmanager.dart';
-import 'package:actt_student_reg/screens/startpage.dart';
-import 'package:actt_student_reg/component/datasyc.dart';
-import 'package:actt_student_reg/component/nofticationtheme.dart'; // Import ThemeNotifier
+import 'package:flutter/services.dart';
+import 'package:intl/date_symbol_data_local.dart';
+import 'app.dart';
+import 'utils/constants.dart';
 
-void callbackDispatcher() {
-  Workmanager().executeTask((task, inputData) async {
-    final dataSync = DataSync();
-    await dataSync.syncDataAndDelete();
-    return Future.value(true);
-  });
-}
-
-void main() {
-  Workmanager().initialize(callbackDispatcher, isInDebugMode: true);
-  Workmanager().registerPeriodicTask(
-    "syncTask",
-    "syncData",
-    frequency: const Duration(hours: 24),
-  );
-
-  runApp(
-    ChangeNotifierProvider(
-      create: (context) => ThemeNotifier(), // Provide ThemeNotifier
-      child: const MyApp(),
+void main() async {
+  // Ensure Flutter binding is initialized
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  // Initialize date formatting
+  await initializeDateFormatting();
+  
+  // Set preferred orientations (portrait mode only for better UX)
+  await SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,
+    DeviceOrientation.portraitDown,
+  ]);
+  
+  // Set system UI overlay style
+  SystemChrome.setSystemUIOverlayStyle(
+    SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: Brightness.dark,
+      systemNavigationBarColor: Colors.white,
+      systemNavigationBarIconBrightness: Brightness.dark,
     ),
   );
-}
-
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final themeNotifier = Provider.of<ThemeNotifier>(context);
-
-    return MaterialApp(
-      theme: themeNotifier.currentTheme, // Use the current theme
-      debugShowCheckedModeBanner: false,
-      home: const Startpage(), // Set the home screen
-    );
-  }
+  
+  // Initialize app constants
+  Constants.init();
+  
+  // Run the app
+  runApp(
+    // This wrapper helps to avoid bottom overflow errors in dialogs and forms
+    MediaQuery(
+      data: MediaQueryData.fromWindow(WidgetsBinding.instance.window),
+      child: App(),
+    ),
+  );
 }
