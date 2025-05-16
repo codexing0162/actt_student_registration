@@ -33,13 +33,27 @@ class DataSync {
   // Fetch data from students.json (local asset)
   Future<List<Map<String, dynamic>>> fetchLocalData() async {
     try {
-      final content = await rootBundle.loadString(
-        'lib/localstorage/students.json',
-      );
-      final List<dynamic> jsonData = jsonDecode(content);
-      return List<Map<String, dynamic>>.from(jsonData);
+      final file = File('lib/localstorage/students.json');
+      if (await file.exists()) {
+        final content = await file.readAsString();
+        final List<dynamic> jsonData = jsonDecode(content);
+        return List<Map<String, dynamic>>.from(jsonData);
+      } else {
+        // If file doesn't exist, return empty list
+        return [];
+      }
     } catch (e) {
       throw Exception('Error reading local data: $e');
+    }
+  }
+
+  // Save updated students.json after deletion
+  Future<void> saveLocalData(List<Map<String, dynamic>> data) async {
+    try {
+      final file = File('lib/localstorage/students.json');
+      await file.writeAsString(jsonEncode(data));
+    } catch (e) {
+      print('Error saving local data: $e');
     }
   }
 
@@ -86,12 +100,13 @@ class DataSync {
     }
   }
 
-  // Perform full sync
-  Future<void> syncData() async {
+  // Perform full sync and delete students.json file after syncing
+  Future<void> syncDataAndDelete() async {
     try {
       await loadSyncedData();
       final localData = await fetchLocalData();
 
+      // Find new data to sync
       final newData =
           localData.where((data) {
             return !_syncedData.any(
@@ -103,9 +118,16 @@ class DataSync {
         await pushToGoogleSheet(newData);
         _syncedData.addAll(newData);
         await saveSyncedData();
+
+        // Delete the students.json file after syncing
+        final file = File('lib/localstorage/students.json');
+        if (await file.exists()) {
+          await file.delete();
+          print('students.json deleted after sync.');
+        }
       }
 
-      print('✅ Data synced successfully!');
+      print('✅ Data synced and students.json deleted!');
     } catch (e) {
       print('❌ Error syncing data: $e');
     }
@@ -114,7 +136,7 @@ class DataSync {
   // Optional: simulate daily sync
   void scheduleDailySync() {
     Future.delayed(const Duration(days: 1), () {
-      syncData();
+      syncDataAndDelete();
       scheduleDailySync();
     });
   }

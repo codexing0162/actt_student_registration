@@ -3,10 +3,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:path_provider/path_provider.dart';
-import 'package:actt_student_reg/screens/home.dart';
-import 'package:actt_student_reg/screens/setting.dart';
-import 'package:flutter/services.dart' show rootBundle;
 
 class StudentList extends StatefulWidget {
   const StudentList({super.key});
@@ -19,36 +15,65 @@ class _StudentListState extends State<StudentList> {
   List<Map<String, dynamic>> _students = [];
   List<Map<String, dynamic>> _filteredStudents = [];
   bool _isLoading = true;
-  bool _fetchFromLocal = true;
   final TextEditingController _searchController = TextEditingController();
-  DateTime _lastModified = DateTime.now();
-  Timer? _autoRefreshTimer;
 
   @override
   void initState() {
     super.initState();
-    _fetchData();
+    _fetchGoogleSheetData();
     _searchController.addListener(_filterStudents);
   }
 
-  Future<void> _fetchData() async {
+  Future<void> _fetchGoogleSheetData() async {
     setState(() {
       _isLoading = true;
     });
 
     try {
-      List<Map<String, dynamic>> data;
-      if (_fetchFromLocal) {
-        data = await _fetchLocalData();
-      } else {
-        data = await _fetchGoogleSheetData();
-      }
+      final url = Uri.parse(
+        'https://script.google.com/macros/s/AKfycby2HTo4nmtn0yGKvAb3xlF9NNJFQWFFOxeT_o9lrM4tb5riN4_5UYjVRiOBmRk7XlzE/exec',
+      );
+      final response = await http.get(url);
 
-      setState(() {
-        _students = data;
-        _filteredStudents = data;
-        _isLoading = false;
-      });
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data is List<dynamic>) {
+          final List<Map<String, dynamic>> rows =
+              data
+                  .whereType<Map<String, dynamic>>()
+                  .map(
+                    (row) => {
+                      'Student': row['Student'] ?? '',
+                      'fullName': row['fullName'] ?? '',
+                      'dob': row['dob'] ?? '',
+                      'gender': row['gender'] ?? '',
+                      'postalAddress': row['postalAddress'] ?? '',
+                      'phone': row['phone'] ?? '',
+                      'emergencyPhone': row['emergencyPhone'] ?? '',
+                      'educationLevel': row['educationLevel'] ?? '',
+                      'courseName': row['courseName'] ?? '',
+                      'trainerName': row['trainerName'] ?? '',
+                      'admissionDate': row['admissionDate'] ?? '',
+                      'completionDate': row['completionDate'] ?? '',
+                      'duration': row['duration'] ?? '',
+                      'price': row['price'] ?? '',
+                      'amountPaid': row['amountPaid'] ?? '',
+                      'remainingPrice': row['remainingPrice'] ?? '',
+                    },
+                  )
+                  .toList();
+
+          setState(() {
+            _students = rows;
+            _filteredStudents = rows;
+            _isLoading = false;
+          });
+        } else {
+          throw Exception('Invalid data format from Google Sheets');
+        }
+      } else {
+        throw Exception('Failed to fetch data from Google Sheets');
+      }
     } catch (e) {
       setState(() {
         _isLoading = false;
@@ -59,226 +84,53 @@ class _StudentListState extends State<StudentList> {
     }
   }
 
-  Future<List<Map<String, dynamic>>> _fetchLocalData() async {
-    try {
-      // Get application documents directory
-      final directory = await getApplicationDocumentsDirectory();
-      final file = File('${directory.path}/students.json');
-
-      // Check if file exists, if not, create it from assets
-      if (!await file.exists()) {
-        final defaultData = await rootBundle.loadString(
-          'lib/localstorage/students.json',
-        );
-        await file.writeAsString(defaultData);
-        _lastModified = await file.lastModified();
-      }
-
-      // Read the file
-      final contents = await file.readAsString();
-      final List<dynamic> jsonData = jsonDecode(contents);
-      return List<Map<String, dynamic>>.from(jsonData);
-    } catch (e) {
-      throw Exception('Error reading local data: $e');
-    }
-  }
-
-  Future<void> _checkForUpdates() async {
-    try {
-      final directory = await getApplicationDocumentsDirectory();
-      final file = File('${directory.path}/students.json');
-
-      if (await file.exists()) {
-        final modified = await file.lastModified();
-
-        if (modified.isAfter(_lastModified)) {
-          _lastModified = modified;
-          await _fetchData();
-        }
-      }
-    } catch (e) {
-      print('Error checking for updates: $e');
-    }
-  }
-
-  Future<List<Map<String, dynamic>>> _fetchGoogleSheetData() async {
-    try {
-      final url = Uri.parse(
-        'https://script.google.com/macros/s/AKfycby2HTo4nmtn0yGKvAb3xlF9NNJFQWFFOxeT_o9lrM4tb5riN4_5UYjVRiOBmRk7XlzE/exec',
-      );
-      final response = await http.get(url);
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        print('Google Sheets API Response: $data');
-
-        if (data is List<dynamic>) {
-          final List<dynamic> rows = data;
-
-          return rows
-              .map((row) {
-                if (row is Map<String, dynamic>) {
-                  return {
-                    'Student': row['Student'] ?? '',
-                    'fullName': row['fullName'] ?? '',
-                    'dob': row['dob'] ?? '',
-                    'gender': row['gender'] ?? '',
-                    'postalAddress': row['postalAddress'] ?? '',
-                    'phone': row['phone'] ?? '',
-                    'emergencyPhone': row['emergencyPhone'] ?? '',
-                    'educationLevel': row['educationLevel'] ?? '',
-                    'courseName': row['courseName'] ?? '',
-                    'trainerName': row['trainerName'] ?? '',
-                    'admissionDate': row['admissionDate'] ?? '',
-                    'completionDate': row['completionDate'] ?? '',
-                    'duration': row['duration'] ?? '',
-                    'price': row['price'] ?? '',
-                    'amountPaid': row['amountPaid'] ?? '',
-                    'remainingPrice': row['remainingPrice'] ?? '',
-                  };
-                } else {
-                  return null;
-                }
-              })
-              .where((row) => row != null)
-              .cast<Map<String, dynamic>>()
-              .toList();
-        } else {
-          throw Exception('Invalid data format from Google Sheets');
-        }
-      } else {
-        throw Exception('Failed to fetch data from Google Sheets');
-      }
-    } catch (e) {
-      print('Error fetching Google Sheets data: $e');
-      throw Exception('Error fetching Google Sheets data: $e');
-    }
-  }
-
   void _filterStudents() {
     final query = _searchController.text.toLowerCase();
     setState(() {
       _filteredStudents =
-          _students
-              .where(
-                (student) =>
-                    (student['Student'] ?? '').toLowerCase().contains(query) ||
-                    (student['fullName'] ?? '').toLowerCase().contains(query) ||
-                    (student['courseName'] ?? '').toLowerCase().contains(
-                      query,
-                    ) ||
-                    (student['trainerName'] ?? '').toLowerCase().contains(
-                      query,
-                    ) ||
-                    (student['phone'] ?? '').toLowerCase().contains(query) ||
-                    (student['dob'] ?? '').toLowerCase().contains(query) ||
-                    (student['postalAddress'] ?? '').toLowerCase().contains(
-                      query,
-                    ) ||
-                    (student['emergencyPhone'] ?? '').toLowerCase().contains(
-                      query,
-                    ) ||
-                    (student['educationLevel'] ?? '').toLowerCase().contains(
-                      query,
-                    ) ||
-                    (student['admissionDate'] ?? '').toLowerCase().contains(
-                      query,
-                    ) ||
-                    (student['completionDate'] ?? '').toLowerCase().contains(
-                      query,
-                    ) ||
-                    (student['duration'] ?? '').toLowerCase().contains(query) ||
-                    (student['price'] ?? '').toLowerCase().contains(query) ||
-                    (student['amountPaid'] ?? '').toLowerCase().contains(
-                      query,
-                    ) ||
-                    (student['remainingPrice'] ?? '').toLowerCase().contains(
-                      query,
-                    ),
-              )
-              .toList();
+          _students.where((student) {
+            return (student['Student'] ?? '').toLowerCase().contains(query) ||
+                (student['fullName'] ?? '').toLowerCase().contains(query) ||
+                (student['courseName'] ?? '').toLowerCase().contains(query) ||
+                (student['trainerName'] ?? '').toLowerCase().contains(query) ||
+                (student['phone'] ?? '').toLowerCase().contains(query) ||
+                (student['dob'] ?? '').toLowerCase().contains(query) ||
+                (student['postalAddress'] ?? '').toLowerCase().contains(
+                  query,
+                ) ||
+                (student['emergencyPhone'] ?? '').toLowerCase().contains(
+                  query,
+                ) ||
+                (student['educationLevel'] ?? '').toLowerCase().contains(
+                  query,
+                ) ||
+                (student['admissionDate'] ?? '').toLowerCase().contains(
+                  query,
+                ) ||
+                (student['completionDate'] ?? '').toLowerCase().contains(
+                  query,
+                ) ||
+                (student['duration'] ?? '').toLowerCase().contains(query) ||
+                (student['price'] ?? '').toLowerCase().contains(query) ||
+                (student['amountPaid'] ?? '').toLowerCase().contains(query) ||
+                (student['remainingPrice'] ?? '').toLowerCase().contains(query);
+          }).toList();
     });
-  }
-
-  void _toggleFetchSource() {
-    setState(() {
-      _fetchFromLocal = !_fetchFromLocal;
-    });
-    _fetchData();
-  }
-
-  void _startAutoRefresh() {
-    _autoRefreshTimer?.cancel();
-    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 5), (
-      timer,
-    ) async {
-      if (_fetchFromLocal && mounted) {
-        await _checkForUpdates();
-      }
-    });
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (_fetchFromLocal) {
-      _startAutoRefresh();
-    }
   }
 
   @override
   void dispose() {
     _searchController.dispose();
-    _autoRefreshTimer?.cancel();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_fetchFromLocal) {
-      _startAutoRefresh();
-    } else {
-      _autoRefreshTimer?.cancel();
-    }
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('Student List'),
         centerTitle: true,
         backgroundColor: Colors.blueGrey,
-      ),
-      drawer: Drawer(
-        child: ListView(
-          padding: EdgeInsets.zero,
-          children: [
-            DrawerHeader(
-              decoration: BoxDecoration(color: Colors.blueGrey),
-              child: Image.asset('lib/images/acttlogo.png'),
-            ),
-            ListTile(
-              leading: const Icon(Icons.home),
-              title: const Text('Home'),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const homepage()),
-                );
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.settings),
-              title: const Text('Setting'),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => Setting()),
-                );
-              },
-            ),
-          ],
-        ),
       ),
       body: Column(
         children: [
@@ -293,31 +145,14 @@ class _StudentListState extends State<StudentList> {
               ),
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text('Fetch from:'),
-                ElevatedButton(
-                  onPressed: _toggleFetchSource,
-                  child: Text(
-                    _fetchFromLocal ? 'Local Storage' : 'Google Sheets',
-                  ),
-                ),
-              ],
-            ),
-          ),
           Expanded(
             child:
                 _isLoading
                     ? const Center(child: CircularProgressIndicator())
                     : _filteredStudents.isEmpty
-                    ? const Center(
-                      child: Text('No students found. Try Fetch Online'),
-                    )
+                    ? const Center(child: Text('No students found.'))
                     : RefreshIndicator(
-                      onRefresh: _fetchData,
+                      onRefresh: _fetchGoogleSheetData,
                       child: ListView.builder(
                         itemCount: _filteredStudents.length,
                         itemBuilder: (context, index) {
@@ -351,6 +186,13 @@ class _StudentListState extends State<StudentList> {
                     ),
           ),
         ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () async {
+          await _fetchGoogleSheetData(); // Refresh data when FAB is pressed
+        },
+        child: const Icon(Icons.refresh),
+        backgroundColor: Colors.blueGrey,
       ),
     );
   }

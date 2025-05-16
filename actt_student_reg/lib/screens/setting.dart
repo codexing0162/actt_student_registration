@@ -63,6 +63,7 @@ class _SettingState extends State<Setting> {
           ],
         ),
       ),
+      // ...existing code...
       body: ListView(
         padding: const EdgeInsets.all(16.0),
         children: [
@@ -73,13 +74,16 @@ class _SettingState extends State<Setting> {
 
           ListTile(
             title: const Text('Manual Sync'),
-            subtitle: const Text('Sync data with Google Sheets manually'),
+            subtitle: const Text('Sync data manually'),
             trailing: ElevatedButton(
               onPressed: () async {
                 try {
-                  await DataSync().syncData();
+                  final dataSync = DataSync();
+                  await dataSync.syncDataAndDelete();
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Data synced successfully!')),
+                    const SnackBar(
+                      content: Text('Data synced and local data updated!'),
+                    ),
                   );
                 } catch (e) {
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -89,27 +93,6 @@ class _SettingState extends State<Setting> {
               },
               child: const Text('Sync Now'),
             ),
-          ),
-
-          SwitchListTile(
-            title: const Text('Enable Auto Sync'),
-            subtitle: const Text('Automatically sync data daily'),
-            value: _autoSyncEnabled,
-            onChanged: (bool value) {
-              setState(() {
-                _autoSyncEnabled = value;
-              });
-              if (value) {
-                DataSync().scheduleDailySync();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Auto Sync Enabled')),
-                );
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Auto Sync Disabled')),
-                );
-              }
-            },
           ),
 
           const Divider(),

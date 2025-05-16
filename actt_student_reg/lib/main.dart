@@ -8,7 +8,7 @@ import 'package:actt_student_reg/component/nofticationtheme.dart'; // Import The
 void callbackDispatcher() {
   Workmanager().executeTask((task, inputData) async {
     final dataSync = DataSync();
-    await dataSync.syncData();
+    await dataSync.syncDataAndDelete();
     return Future.value(true);
   });
 }
