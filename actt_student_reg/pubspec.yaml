@@ -38,6 +38,7 @@ dependencies:
   file_picker: ^5.2.6
   permission_handler: ^10.2.0
   connectivity_plus: ^6.1.4
+  shared_preferences: ^2.5.3
     
 
   # The following adds the Cupertino Icons font to your application.

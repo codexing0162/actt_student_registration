@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:workmanager/workmanager.dart';
+import 'package:actt_student_reg/screens/admin.dart';
+import 'package:actt_student_reg/component/form.dart';
+import 'package:actt_student_reg/screens/teacher.dart';
 import 'package:actt_student_reg/screens/startpage.dart';
 import 'package:actt_student_reg/component/datasyc.dart';
 import 'package:actt_student_reg/component/nofticationtheme.dart'; // Import ThemeNotifier
@@ -40,6 +43,11 @@ class MyApp extends StatelessWidget {
       theme: themeNotifier.currentTheme, // Use the current theme
       debugShowCheckedModeBanner: false,
       home: const Startpage(), // Set the home screen
+      routes: {
+        '/admin': (context) => const AdminDashboard(),
+        '/teacher': (context) => const TeacherDashboard(),
+        '/addStudent': (context) => const RegisterForm(),
+      },
     );
   }
 }

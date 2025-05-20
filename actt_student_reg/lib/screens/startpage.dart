@@ -1,76 +1,68 @@
 import 'package:flutter/material.dart';
-import 'package:actt_student_reg/screens/home.dart';
 
-class Startpage extends StatelessWidget {
-  const Startpage({super.key});
+class Startpage extends StatefulWidget {
+  const Startpage({Key? key}) : super(key: key);
+
+  @override
+  State<Startpage> createState() => _StartpageState();
+}
+
+class _StartpageState extends State<Startpage> {
+  final TextEditingController _usernameController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+
+  // Example user store (replace with secure storage/database)
+  final Map<String, Map<String, String>> users = {
+    'admin': {'password': 'admin123', 'role': 'admin'},
+    'teacher': {'password': 'teacher123', 'role': 'teacher'},
+  };
+
+  String? _error;
+
+  void _login() {
+    final username = _usernameController.text.trim();
+    final password = _passwordController.text;
+
+    if (users.containsKey(username) &&
+        users[username]!['password'] == password) {
+      final role = users[username]!['role'];
+      if (role == 'admin') {
+        Navigator.pushReplacementNamed(context, '/admin');
+      } else if (role == 'teacher') {
+        Navigator.pushReplacementNamed(context, '/teacher');
+      }
+    } else {
+      setState(() {
+        _error = 'Invalid credentials';
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.blueGrey,
+      appBar: AppBar(title: const Text('Login')),
       body: Padding(
-        padding: const EdgeInsets.all(25),
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              // Logo
-              Image.asset('lib/images/acttlogo.png', height: 150),
-
-              const SizedBox(height: 20),
-
-              // Title
-              const Text(
-                'ACTT Student Registration',
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-                textAlign: TextAlign.center,
-              ),
-
-              const SizedBox(height: 10),
-
-              // Subtitle
-              const Text(
-                'Welcome to the ACTT Student Registration App',
-                style: TextStyle(fontSize: 18, color: Colors.white70),
-                textAlign: TextAlign.center,
-              ),
-
-              const SizedBox(height: 40),
-
-              // Start button
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => homepage()),
-                  );
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.black,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 50,
-                    vertical: 15,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(30),
-                  ),
-                ),
-                child: const Text(
-                  'Login',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 20,
-                  ),
-                ),
-              ),
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            TextField(
+              controller: _usernameController,
+              decoration: const InputDecoration(labelText: 'Username'),
+            ),
+            TextField(
+              controller: _passwordController,
+              decoration: const InputDecoration(labelText: 'Password'),
+              obscureText: true,
+            ),
+            if (_error != null) ...[
+              const SizedBox(height: 8),
+              Text(_error!, style: const TextStyle(color: Colors.red)),
             ],
-          ),
+            const SizedBox(height: 16),
+            ElevatedButton(onPressed: _login, child: const Text('Login')),
+          ],
         ),
       ),
     );
