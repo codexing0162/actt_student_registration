@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:actt_student_reg/component/form.dart';
-import 'package:actt_student_reg/screens/setting.dart';
-import 'package:actt_student_reg/screens/studentlist.dart';
+import 'package:actt_student_reg/component/drawer.dart';
 
 class homepage extends StatelessWidget {
   const homepage({super.key});
@@ -18,42 +17,7 @@ class homepage extends StatelessWidget {
       ),
 
       // drawer
-      drawer: Drawer(
-        child: ListView(
-          padding: EdgeInsets.zero,
-          children: [
-            DrawerHeader(
-              decoration: BoxDecoration(color: Colors.blueGrey),
-              child: Image.asset('lib/images/acttlogo.png'),
-            ),
-
-            ListTile(
-              leading: const Icon(Icons.list),
-              title: const Text('Student List'),
-              onTap: () {
-                Navigator.pop(context); // Close the drawer
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const StudentList()),
-                );
-                // Handle student list tap
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.settings),
-              title: const Text('Setting'),
-              onTap: () {
-                // to setting page
-                Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => Setting()),
-                );
-              },
-            ),
-          ],
-        ),
-      ),
+      drawer: AppDrawer(),
 
       //body
       body: Center(

@@ -1,68 +1,70 @@
 import 'package:flutter/material.dart';
+import 'package:actt_student_reg/screens/home.dart';
 
-class Startpage extends StatefulWidget {
-  const Startpage({Key? key}) : super(key: key);
-
-  @override
-  State<Startpage> createState() => _StartpageState();
-}
-
-class _StartpageState extends State<Startpage> {
-  final TextEditingController _usernameController = TextEditingController();
-  final TextEditingController _passwordController = TextEditingController();
-
-  // Example user store (replace with secure storage/database)
-  final Map<String, Map<String, String>> users = {
-    'admin': {'password': 'admin123', 'role': 'admin'},
-    'teacher': {'password': 'teacher123', 'role': 'teacher'},
-  };
-
-  String? _error;
-
-  void _login() {
-    final username = _usernameController.text.trim();
-    final password = _passwordController.text;
-
-    if (users.containsKey(username) &&
-        users[username]!['password'] == password) {
-      final role = users[username]!['role'];
-      if (role == 'admin') {
-        Navigator.pushReplacementNamed(context, '/admin');
-      } else if (role == 'teacher') {
-        Navigator.pushReplacementNamed(context, '/teacher');
-      }
-    } else {
-      setState(() {
-        _error = 'Invalid credentials';
-      });
-    }
-  }
+class Startpage extends StatelessWidget {
+  const Startpage({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Login')),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            TextField(
-              controller: _usernameController,
-              decoration: const InputDecoration(labelText: 'Username'),
-            ),
-            TextField(
-              controller: _passwordController,
-              decoration: const InputDecoration(labelText: 'Password'),
-              obscureText: true,
-            ),
-            if (_error != null) ...[
-              const SizedBox(height: 8),
-              Text(_error!, style: const TextStyle(color: Colors.red)),
+      backgroundColor: Colors.grey,
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 25.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // logo
+              Padding(
+                padding: const EdgeInsets.all(25.0),
+                child: Image.asset('lib/images/acttlogo.png', height: 240),
+              ),
+
+              // tittle
+              Text(
+                'Actt',
+                style: TextStyle(fontSize: 30, fontWeight: FontWeight.bold),
+              ),
+
+              // to leave a space
+              const SizedBox(height: 30),
+
+              //sub titile
+              const Text(
+                'welcome to affordable computer and technology for tanzania ',
+                style: TextStyle(fontSize: 17, color: Colors.black),
+                textAlign: TextAlign.center,
+              ),
+
+              const SizedBox(height: 30),
+
+              // start button
+              GestureDetector(
+                onTap:
+                    () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => homepage()),
+                    ),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.black,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  padding: EdgeInsets.all(20),
+                  child: Center(
+                    child: Text(
+                      'Start',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             ],
-            const SizedBox(height: 16),
-            ElevatedButton(onPressed: _login, child: const Text('Login')),
-          ],
+          ),
         ),
       ),
     );

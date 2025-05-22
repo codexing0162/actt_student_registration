@@ -1,143 +1,73 @@
 import 'dart:io';
+import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:flutter/services.dart' show rootBundle;
+
+final String _studentdatapath = 'lib/localstorage/students.json';
 
 class DataSync {
-  List<Map<String, dynamic>> _syncedData = [];
-
-  // Load already-synced data from local JSON
-  Future<void> loadSyncedData() async {
+  Future<String> pushAndDeleteStudentData() async {
     try {
-      final file = File('lib/localstorage/sycdata.json');
-      if (await file.exists()) {
-        final contents = await file.readAsString();
-        final List<dynamic> jsonData = jsonDecode(contents);
-        _syncedData = List<Map<String, dynamic>>.from(jsonData);
+      final file = File(_studentdatapath);
+      if (!await file.exists()) {
+        return '❌ student.json file not found.';
       }
-    } catch (e) {
-      print('Error loading synced data: $e');
-    }
-  }
 
-  // Save synced data to file
-  Future<void> saveSyncedData() async {
-    try {
-      final file = File('lib/localstorage/sycdata.json');
-      await file.writeAsString(jsonEncode(_syncedData));
-    } catch (e) {
-      print('Error saving synced data: $e');
-    }
-  }
-
-  // Fetch data from students.json (local asset)
-  Future<List<Map<String, dynamic>>> fetchLocalData() async {
-    try {
-      final file = File('lib/localstorage/students.json');
-      if (await file.exists()) {
-        final content = await file.readAsString();
-        final List<dynamic> jsonData = jsonDecode(content);
-        return List<Map<String, dynamic>>.from(jsonData);
-      } else {
-        // If file doesn't exist, return empty list
-        return [];
+      final content = await file.readAsString();
+      final List<dynamic> jsonData = jsonDecode(content);
+      if (jsonData.isEmpty) {
+        return '⚠️ No student data to sync.';
       }
-    } catch (e) {
-      throw Exception('Error reading local data: $e');
-    }
-  }
 
-  // Save updated students.json after deletion
-  Future<void> saveLocalData(List<Map<String, dynamic>> data) async {
-    try {
-      final file = File('lib/localstorage/students.json');
-      await file.writeAsString(jsonEncode(data));
-    } catch (e) {
-      print('Error saving local data: $e');
-    }
-  }
-
-  // Push new records to Google Sheets
-  Future<void> pushToGoogleSheet(List<Map<String, dynamic>> newData) async {
-    try {
-      final url = Uri.parse(
-        'https://script.google.com/macros/s/AKfycby2HTo4nmtn0yGKvAb3xlF9NNJFQWFFOxeT_o9lrM4tb5riN4_5UYjVRiOBmRk7XlzE/exec',
-      );
+      final List<Map<String, dynamic>> students =
+          List<Map<String, dynamic>>.from(jsonData);
 
       final rows =
-          newData.map((data) {
-            return [
-              data['Student'],
-              data['fullName'],
-              data['dob'],
-              data['gender'],
-              data['postalAddress'],
-              data['phone'],
-              data['emergencyPhone'],
-              data['educationLevel'],
-              data['courseName'],
-              data['trainerName'],
-              data['admissionDate'],
-              data['completionDate'],
-              data['duration'],
-              data['price'],
-              data['amountPaid'],
-              data['remainingPrice'],
-            ];
-          }).toList();
+          students
+              .map(
+                (data) => [
+                  data['Student'],
+                  data['fullName'],
+                  data['dob'],
+                  data['gender'],
+                  data['postalAddress'],
+                  data['phone'],
+                  data['emergencyPhone'],
+                  data['educationLevel'],
+                  data['courseName'],
+                  data['trainerName'],
+                  data['admissionDate'],
+                  data['completionDate'],
+                  data['duration'],
+                  data['price'],
+                  data['amountPaid'],
+                  data['remainingPrice'],
+                ],
+              )
+              .toList();
 
       final response = await http.post(
-        url,
+        Uri.parse(
+          'https://script.google.com/macros/s/AKfycbySt_PdLxKtje6gW5YlP2IdUOgKJpd3wl6HalvyEulZ_ft52-QKoRf3bYRth7cD64d6/exec',
+        ),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'values': rows}),
       );
 
-      if (response.statusCode != 200) {
-        throw Exception('Failed to sync data: ${response.body}');
-      }
-    } catch (e) {
-      throw Exception('Error pushing data to Google Sheets: $e');
-    }
-  }
-
-  // Perform full sync and delete students.json file after syncing
-  Future<void> syncDataAndDelete() async {
-    try {
-      await loadSyncedData();
-      final localData = await fetchLocalData();
-
-      // Find new data to sync
-      final newData =
-          localData.where((data) {
-            return !_syncedData.any(
-              (synced) => synced['Student'] == data['Student'],
-            );
-          }).toList();
-
-      if (newData.isNotEmpty) {
-        await pushToGoogleSheet(newData);
-        _syncedData.addAll(newData);
-        await saveSyncedData();
-
-        // Delete the students.json file after syncing
-        final file = File('lib/localstorage/students.json');
-        if (await file.exists()) {
+      if (response.statusCode == 200) {
+        final body = jsonDecode(response.body);
+        if (body['status'] == 'success') {
           await file.delete();
-          print('students.json deleted after sync.');
+          return '✅ ${body['message']}';
+        } else {
+          return '⚠️ Server Error: ${body['message']}';
         }
+      } else {
+        return '❌ HTTP Error ${response.statusCode}: ${response.body}';
       }
-
-      print('✅ Data synced and students.json deleted!');
     } catch (e) {
-      print('❌ Error syncing data: $e');
+      // Handle any exceptions
+      return '❌ Error: $e';
     }
-  }
-
-  // Optional: simulate daily sync
-  void scheduleDailySync() {
-    Future.delayed(const Duration(days: 1), () {
-      syncDataAndDelete();
-      scheduleDailySync();
-    });
   }
 }
